@@ -19,11 +19,22 @@ A modern, interactive web application designed to educate young people about dif
   - Savings Accounts
   - Retirement Accounts (401k, IRA)
 
-## Getting Started
+## Getting Started (run locally)
 
-1. Open `index.html` in a modern web browser
-2. Start chatting by typing questions about investments
-3. View detailed analysis in the right pane
+### Prerequisites
+- Git
+- Python 3 (for the simple local server)
+
+### Quick start
+```bash
+git clone https://github.com/aryandas2009-cmd/myp5-project.git
+cd myp5-project
+python3 -m http.server 8000
+```
+Then open `http://localhost:8000` (or `http://127.0.0.1:8000`) in your browser.
+
+### Alternate: open directly
+You can also double-click `index.html` to open it directly, but using the local server avoids CORS and file-path issues if you add APIs later.
 
 ## Usage Examples
 
