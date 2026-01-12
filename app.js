@@ -453,63 +453,27 @@ document.querySelectorAll('.topic-tag').forEach(tag => {
 // Stock data fetching and display
 async function fetchStockData(symbol) {
     try {
+        // Using Alpha Vantage API (free tier)
+        // Note: In production, you should use your own API key
+        // For demo purposes, using a demo key - users should get their own from https://www.alphavantage.co/support/#api-key
+        const API_KEY = 'demo'; // Replace with your API key
         const symbolUpper = symbol.toUpperCase().trim();
         
-        // Using Yahoo Finance API via CORS proxy (more reliable than Alpha Vantage demo)
-        // This fetches 5 years of historical data
-        const endDate = Math.floor(Date.now() / 1000);
-        const startDate = endDate - (5 * 365 * 24 * 60 * 60); // 5 years ago
+        // Fetch daily adjusted data for 5 years
+        const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbolUpper}&apikey=${API_KEY}&outputsize=full`;
         
-        // Try multiple API endpoints for better reliability
-        const urls = [
-            // Primary: Yahoo Finance via CORS proxy
-            `https://query1.finance.yahoo.com/v8/finance/chart/${symbolUpper}?interval=1d&range=5y`,
-            // Fallback: Alternative endpoint
-            `https://query2.finance.yahoo.com/v8/finance/chart/${symbolUpper}?interval=1d&range=5y`
-        ];
+        const response = await fetch(url);
+        const data = await response.json();
         
-        let data = null;
-        let lastError = null;
-        
-        // Try each URL until one works
-        for (const url of urls) {
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                data = await response.json();
-                
-                // Check if we got valid data
-                if (data && data.chart && data.chart.result && data.chart.result[0]) {
-                    return data;
-                }
-            } catch (error) {
-                lastError = error;
-                console.log(`Trying next API endpoint...`);
-                continue;
-            }
+        if (data['Error Message'] || data['Note']) {
+            throw new Error(data['Error Message'] || data['Note'] || 'API limit reached. Please try again later.');
         }
         
-        // If all URLs failed, try Alpha Vantage as last resort
-        if (!data) {
-            const API_KEY = 'demo';
-            const alphaUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbolUpper}&apikey=${API_KEY}&outputsize=full`;
-            const response = await fetch(alphaUrl);
-            const alphaData = await response.json();
-            
-            if (alphaData['Error Message'] || alphaData['Note']) {
-                throw new Error(alphaData['Error Message'] || alphaData['Note'] || 'API limit reached. Please try again later or get your own API key from alphavantage.co');
-            }
-            
-            if (!alphaData['Time Series (Daily)']) {
-                throw new Error('Invalid stock symbol or no data available. Please check the symbol and try again.');
-            }
-            
-            return alphaData;
+        if (!data['Time Series (Daily)']) {
+            throw new Error('Invalid stock symbol or no data available');
         }
         
-        throw lastError || new Error('Unable to fetch stock data');
+        return data;
     } catch (error) {
         console.error('Error fetching stock data:', error);
         throw error;
@@ -517,67 +481,6 @@ async function fetchStockData(symbol) {
 }
 
 function processStockData(apiData, symbol) {
-    // Handle Yahoo Finance API format
-    if (apiData.chart && apiData.chart.result && apiData.chart.result[0]) {
-        const result = apiData.chart.result[0];
-        const timestamps = result.timestamp;
-        const quotes = result.indicators.quote[0];
-        
-        const dates = [];
-        const closes = [];
-        const opens = [];
-        const highs = [];
-        const lows = [];
-        const volumes = [];
-        
-        // Process Yahoo Finance data
-        for (let i = 0; i < timestamps.length; i++) {
-            const timestamp = timestamps[i];
-            const close = quotes.close[i];
-            const open = quotes.open[i];
-            const high = quotes.high[i];
-            const low = quotes.low[i];
-            const volume = quotes.volume[i];
-            
-            // Skip null values
-            if (close !== null && open !== null && high !== null && low !== null) {
-                const date = new Date(timestamp * 1000);
-                dates.push(date.toISOString().split('T')[0]);
-                closes.push(close);
-                opens.push(open);
-                highs.push(high);
-                lows.push(low);
-                volumes.push(volume || 0);
-            }
-        }
-        
-        // Calculate statistics
-        const latestPrice = closes[closes.length - 1];
-        const oldestPrice = closes[0];
-        const totalReturn = ((latestPrice - oldestPrice) / oldestPrice) * 100;
-        const highestPrice = Math.max(...highs);
-        const lowestPrice = Math.min(...lows);
-        const avgVolume = Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length);
-        
-        return {
-            symbol: symbol.toUpperCase(),
-            dates,
-            closes,
-            opens,
-            highs,
-            lows,
-            volumes,
-            latestPrice,
-            oldestPrice,
-            totalReturn,
-            highestPrice,
-            lowestPrice,
-            avgVolume,
-            metaData: result.meta
-        };
-    }
-    
-    // Handle Alpha Vantage API format (fallback)
     const timeSeries = apiData['Time Series (Daily)'];
     const metaData = apiData['Meta Data'];
     
@@ -787,31 +690,13 @@ async function searchStock() {
     }
 }
 
-// Initialize stock search handlers when DOM is ready
-function initializeStockSearch() {
-    const searchBtn = document.getElementById('searchStockButton');
-    const stockInput = document.getElementById('stockSymbolInput');
-    
-    if (searchBtn && stockInput) {
-        searchBtn.addEventListener('click', searchStock);
-        stockInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                searchStock();
-            }
-        });
-    } else {
-        console.error('Stock search elements not found');
+// Stock search event handlers
+searchStockButton.addEventListener('click', searchStock);
+stockSymbolInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        searchStock();
     }
-}
+});
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        initializeStockSearch();
-        displayInvestment('stocks'); // Show stocks as default example
-    });
-} else {
-    // DOM is already ready
-    initializeStockSearch();
-    displayInvestment('stocks'); // Show stocks as default example
-}
+// Initialize welcome state
+displayInvestment('stocks'); // Show stocks as default example
