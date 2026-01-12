@@ -393,6 +393,74 @@ body {
     color: #f59e0b;
 }
 
+/* Feedback */
+.feedback-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.feedback-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.feedback-subtitle {
+    color: #6b7280;
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.feedback-score {
+    font-weight: 600;
+    color: #111827;
+    white-space: nowrap;
+}
+
+.feedback-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.feedback-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    color: #111827;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.feedback-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    border-color: #d1d5db;
+}
+
+.thumbs-up {
+    color: #0f766e;
+    background: #ecfdf3;
+    border-color: #bbf7d0;
+}
+
+.thumbs-down {
+    color: #b91c1c;
+    background: #fef2f2;
+    border-color: #fecdd3;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .app-container {

@@ -233,6 +233,85 @@ const chatInput = document.getElementById('chatInput');
 const sendButton = document.getElementById('sendButton');
 const resultsContent = document.getElementById('resultsContent');
 
+// Feedback data store (per investment type)
+const defaultFeedback = {
+    helpful: 0,
+    notHelpful: 0
+};
+
+function loadFeedbackData() {
+    try {
+        const raw = localStorage.getItem('investmentFeedback');
+        return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveFeedbackData(data) {
+    try {
+        localStorage.setItem('investmentFeedback', JSON.stringify(data));
+    } catch (e) {
+        // ignore storage errors
+    }
+}
+
+const feedbackData = loadFeedbackData();
+
+function getFeedbackCounts(key) {
+    if (!feedbackData[key]) {
+        feedbackData[key] = { ...defaultFeedback };
+    }
+    return feedbackData[key];
+}
+
+function feedbackSummary(key) {
+    const { helpful, notHelpful } = getFeedbackCounts(key);
+    const total = helpful + notHelpful;
+    if (total === 0) return 'No feedback yet. Be the first to rate!';
+    const pct = Math.round((helpful / total) * 100);
+    return `${pct}% found this helpful (${helpful} 👍 / ${notHelpful} 👎)`;
+}
+
+function feedbackTemplate(key) {
+    const counts = getFeedbackCounts(key);
+    return `
+        <div class="feedback-card" data-investment="${key}">
+            <div class="feedback-header">
+                <div>
+                    <div class="section-title">Was this explanation helpful?</div>
+                    <p class="feedback-subtitle">Your feedback helps improve how we teach each topic.</p>
+                </div>
+                <div class="feedback-score">${feedbackSummary(key)}</div>
+            </div>
+            <div class="feedback-actions">
+                <button class="feedback-button thumbs-up" id="feedback-up" aria-label="Thumbs up" data-investment="${key}">👍 Helpful (${counts.helpful})</button>
+                <button class="feedback-button thumbs-down" id="feedback-down" aria-label="Thumbs down" data-investment="${key}">👎 Needs work (${counts.notHelpful})</button>
+            </div>
+        </div>
+    `;
+}
+
+function attachFeedbackHandlers(key) {
+    const up = document.getElementById('feedback-up');
+    const down = document.getElementById('feedback-down');
+    if (!up || !down) return;
+
+    const handle = (type) => {
+        const counts = getFeedbackCounts(key);
+        counts[type] += 1;
+        saveFeedbackData(feedbackData);
+        // Re-render summary and counts inline
+        const score = document.querySelector('.feedback-score');
+        if (score) score.textContent = feedbackSummary(key);
+        up.textContent = `👍 Helpful (${counts.helpful})`;
+        down.textContent = `👎 Needs work (${counts.notHelpful})`;
+    };
+
+    up.onclick = () => handle('helpful');
+    down.onclick = () => handle('notHelpful');
+}
+
 // Add message to chat
 function addMessage(text, isUser = false) {
     const messageDiv = document.createElement('div');
@@ -287,10 +366,13 @@ function displayInvestment(investmentKey) {
                     </ul>
                 </div>
             </div>
+
+            ${feedbackTemplate(investmentKey)}
         </div>
     `;
     
     resultsContent.scrollTop = 0;
+    attachFeedbackHandlers(investmentKey);
 }
 
 // Process user query
