@@ -232,6 +232,11 @@ const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
 const sendButton = document.getElementById('sendButton');
 const resultsContent = document.getElementById('resultsContent');
+const stockSymbolInput = document.getElementById('stockSymbolInput');
+const searchStockButton = document.getElementById('searchStockButton');
+
+// Stock chart instance
+let stockChart = null;
 
 // Feedback data store (per investment type)
 const defaultFeedback = {
@@ -443,6 +448,254 @@ document.querySelectorAll('.topic-tag').forEach(tag => {
         chatInput.value = `Tell me about ${query}`;
         sendButton.click();
     });
+});
+
+// Stock data fetching and display
+async function fetchStockData(symbol) {
+    try {
+        // Using Alpha Vantage API (free tier)
+        // Note: In production, you should use your own API key
+        // For demo purposes, using a demo key - users should get their own from https://www.alphavantage.co/support/#api-key
+        const API_KEY = 'demo'; // Replace with your API key
+        const symbolUpper = symbol.toUpperCase().trim();
+        
+        // Fetch daily adjusted data for 5 years
+        const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbolUpper}&apikey=${API_KEY}&outputsize=full`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data['Error Message'] || data['Note']) {
+            throw new Error(data['Error Message'] || data['Note'] || 'API limit reached. Please try again later.');
+        }
+        
+        if (!data['Time Series (Daily)']) {
+            throw new Error('Invalid stock symbol or no data available');
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('Error fetching stock data:', error);
+        throw error;
+    }
+}
+
+function processStockData(apiData, symbol) {
+    const timeSeries = apiData['Time Series (Daily)'];
+    const metaData = apiData['Meta Data'];
+    
+    // Get last 5 years of data
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    
+    const dates = [];
+    const closes = [];
+    const opens = [];
+    const highs = [];
+    const lows = [];
+    const volumes = [];
+    
+    // Sort dates (oldest first)
+    const sortedDates = Object.keys(timeSeries).sort();
+    
+    sortedDates.forEach(date => {
+        const dateObj = new Date(date);
+        if (dateObj >= fiveYearsAgo) {
+            dates.push(date);
+            const dayData = timeSeries[date];
+            closes.push(parseFloat(dayData['4. close']));
+            opens.push(parseFloat(dayData['1. open']));
+            highs.push(parseFloat(dayData['2. high']));
+            lows.push(parseFloat(dayData['3. low']));
+            volumes.push(parseInt(dayData['6. volume']));
+        }
+    });
+    
+    // Calculate statistics
+    const latestPrice = closes[closes.length - 1];
+    const oldestPrice = closes[0];
+    const totalReturn = ((latestPrice - oldestPrice) / oldestPrice) * 100;
+    const highestPrice = Math.max(...highs);
+    const lowestPrice = Math.min(...lows);
+    const avgVolume = Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length);
+    
+    return {
+        symbol: symbol.toUpperCase(),
+        dates,
+        closes,
+        opens,
+        highs,
+        lows,
+        volumes,
+        latestPrice,
+        oldestPrice,
+        totalReturn,
+        highestPrice,
+        lowestPrice,
+        avgVolume,
+        metaData
+    };
+}
+
+function displayStockData(stockData) {
+    const { symbol, dates, closes, latestPrice, totalReturn, highestPrice, lowestPrice, avgVolume } = stockData;
+    
+    // Format dates for chart (show only year-month for readability)
+    const chartLabels = dates.map(date => {
+        const d = new Date(date);
+        return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    });
+    
+    // Display stock information
+    const returnColor = totalReturn >= 0 ? '#10b981' : '#ef4444';
+    const returnIcon = totalReturn >= 0 ? '📈' : '📉';
+    
+    const stockInfoHTML = `
+        <div class="stock-info-card">
+            <div class="stock-info-header">
+                <h2>${symbol} Stock Analysis</h2>
+                <div class="stock-price">$${latestPrice.toFixed(2)}</div>
+            </div>
+            
+            <div class="stock-stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">5-Year Return</div>
+                    <div class="stat-value" style="color: ${returnColor}">
+                        ${returnIcon} ${totalReturn.toFixed(2)}%
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Highest Price (5Y)</div>
+                    <div class="stat-value">$${highestPrice.toFixed(2)}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Lowest Price (5Y)</div>
+                    <div class="stat-value">$${lowestPrice.toFixed(2)}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Avg Daily Volume</div>
+                    <div class="stat-value">${avgVolume.toLocaleString()}</div>
+                </div>
+            </div>
+            
+            <div class="stock-chart-container">
+                <canvas id="stockChart"></canvas>
+            </div>
+            
+            <div class="stock-disclaimer">
+                <p><strong>Disclaimer:</strong> This data is for educational purposes only. Past performance does not guarantee future results. Always do your own research before making investment decisions.</p>
+            </div>
+        </div>
+    `;
+    
+    resultsContent.innerHTML = stockInfoHTML;
+    
+    // Destroy existing chart if it exists
+    if (stockChart) {
+        stockChart.destroy();
+    }
+    
+    // Create chart
+    const ctx = document.getElementById('stockChart').getContext('2d');
+    stockChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: `${symbol} Closing Price`,
+                data: closes,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${symbol} - 5 Year Stock Price History`,
+                    font: {
+                        size: 18,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Price (USD)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    },
+                    ticks: {
+                        maxTicksLimit: 12
+                    }
+                }
+            }
+        }
+    });
+    
+    resultsContent.scrollTop = 0;
+}
+
+async function searchStock() {
+    const symbol = stockSymbolInput.value.trim();
+    if (!symbol) {
+        addMessage('Please enter a stock symbol (e.g., AAPL, MSFT, GOOGL)', false);
+        return;
+    }
+    
+    // Show loading state
+    resultsContent.innerHTML = `
+        <div class="loading-message">
+            <div class="loading-spinner"></div>
+            <p>Fetching ${symbol.toUpperCase()} stock data...</p>
+        </div>
+    `;
+    
+    addMessage(`Searching for ${symbol.toUpperCase()} stock data...`, true);
+    
+    try {
+        const apiData = await fetchStockData(symbol);
+        const stockData = processStockData(apiData, symbol);
+        displayStockData(stockData);
+        addMessage(`Here's the 5-year analysis for ${stockData.symbol}. Check the right pane for detailed charts and statistics!`, false);
+    } catch (error) {
+        resultsContent.innerHTML = `
+            <div class="error-message">
+                <h3>⚠️ Error Loading Stock Data</h3>
+                <p>${error.message}</p>
+                <p class="error-hint">Note: The Alpha Vantage API has rate limits. If you see this error frequently, consider:</p>
+                <ul>
+                    <li>Getting your own free API key from <a href="https://www.alphavantage.co/support/#api-key" target="_blank">Alpha Vantage</a></li>
+                    <li>Waiting a few minutes before trying again</li>
+                    <li>Trying a different stock symbol</li>
+                </ul>
+            </div>
+        `;
+        addMessage(`Sorry, I couldn't fetch data for ${symbol.toUpperCase()}. ${error.message}`, false);
+    }
+}
+
+// Stock search event handlers
+searchStockButton.addEventListener('click', searchStock);
+stockSymbolInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        searchStock();
+    }
 });
 
 // Initialize welcome state

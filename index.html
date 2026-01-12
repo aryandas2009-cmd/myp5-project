@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Investment Education Chat</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -46,6 +47,16 @@
         <div class="results-pane">
             <div class="results-header">
                 <h2>📊 Investment Analysis & Results</h2>
+                <div class="stock-search-container">
+                    <input 
+                        type="text" 
+                        id="stockSymbolInput" 
+                        class="stock-input" 
+                        placeholder="Enter stock symbol (e.g., AAPL, MSFT, GOOGL)"
+                        autocomplete="off"
+                    >
+                    <button id="searchStockButton" class="search-stock-button">Search Stock</button>
+                </div>
             </div>
             
             <div class="results-content" id="resultsContent">
